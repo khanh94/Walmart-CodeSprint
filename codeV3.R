@@ -38,7 +38,7 @@ corpus <- tm_map(corpus, PlainTextDocument)
 
 frequencies <- DocumentTermMatrix(corpus) 
 
-sparse <- removeSparseTerms(frequencies, 1 - 100/nrow(frequencies))
+sparse <- removeSparseTerms(frequencies, 1 - 50/nrow(frequencies))
 dim(sparse)
 
 newsparse <- as.data.frame(as.matrix(sparse))
