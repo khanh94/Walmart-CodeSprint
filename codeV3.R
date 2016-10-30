@@ -27,6 +27,7 @@ combi <- rbind(train, test)
 
 combi$`Product Name` = paste(combi$'Short Description', combi$`Product Name`)
 combi$`Product Name` = paste(combi$'Product Long Description', combi$`Product Name`)
+
 corpus <- Corpus(VectorSource(combi$`Product Name`))
 corpus <- tm_map(corpus, tolower)
 corpus <- tm_map(corpus, removePunctuation)
@@ -37,7 +38,7 @@ corpus <- tm_map(corpus, PlainTextDocument)
 
 frequencies <- DocumentTermMatrix(corpus) 
 
-sparse <- removeSparseTerms(frequencies, 1 - 25/nrow(frequencies))
+sparse <- removeSparseTerms(frequencies, 1 - 100/nrow(frequencies))
 dim(sparse)
 
 newsparse <- as.data.frame(as.matrix(sparse))
@@ -60,6 +61,7 @@ rm(frequencies)
 rm(frequencies2)
 rm(sparse)
 rm(newsparse)
+rm(combi)
 gc()
 
 train <- train[, ":="(item_id = NULL,
