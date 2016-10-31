@@ -5,6 +5,7 @@ library(xgboost)
 library(tm)
 library(tm.plugin.webmining)
 
+#Reading the data
 train <- fread('train.tsv')
 test <- fread('test.tsv')
 
@@ -28,6 +29,7 @@ combi <- rbind(train, test)
 combi$Length_Name <- nchar(combi$'Product Name')
 combi$Length_Description <- nchar(combi$'Product Long Description')
 
+#Building a corpus of text data and extracting words from the corpus
 combi$'Product Name' = paste(combi$'Product Long Description', combi$'Product Name')
 combi$'Product Name' = paste(combi$'Short Description', combi$'Product Name')
 combi$'Product Name' = paste(combi$'Synopsis', combi$'Product Name') 
@@ -43,8 +45,10 @@ corpus <- tm_map(corpus, stripWhitespace)
 corpus <- tm_map(corpus, stemDocument)
 corpus <- tm_map(corpus, PlainTextDocument)
 
+#Build a Document Term Frequency matrix
 frequencies <- DocumentTermMatrix(corpus) 
 
+#Removing sparse terms
 sparse <- removeSparseTerms(frequencies, 1 - 50/nrow(frequencies))
 dim(sparse)
 
@@ -53,6 +57,7 @@ dim(newsparse)
 
 colnames(newsparse) <- make.names(colnames(newsparse))
 
+#Separating products appearing on 1 shelf and multiple shelves
 train$tag <- as.numeric(train$tag)
 train$tag[is.na(train$tag)] = 15
 
@@ -134,7 +139,7 @@ model_xgb_cv <- xgb.cv(data=as.matrix(mytrain),
                        min_child_weight=1, 
                        eval_metric="merror")
 
-
+#Run the classification model
 model_xgb <- xgboost(data=as.matrix(mytrain), 
                      label=as.matrix(target), 
                      objective="multi:softmax", 
@@ -152,6 +157,7 @@ model_xgb <- xgboost(data=as.matrix(mytrain),
 
 preds <- predict(model_xgb, as.matrix(mytest))
 
+#Remove objects and doing garbage collection
 rm(mytrain)
 gc()
 rm(mytest)
@@ -165,6 +171,7 @@ final_sub <- data.frame(item_id = ID, tag = preds)
 for(i in 1:length(final_sub$tag)){
   final_sub$tag[i] = as.numeric(levels(as.factor(outcome))[final_sub$tag[i] + 1])}
 
+#Substitute the products appearing on multiple shelves with the most popular multiple shelves combination
 final_sub$tag[final_sub$tag == 15] = paste0('3304195, ', '1229821')
 final_sub$tag <- paste0("[", final_sub$tag,"]")
 write.table(final_sub, file='tags.tsv', quote=FALSE, sep='\t', row.names=F)
