@@ -25,11 +25,18 @@ ID <- test$item_id
 test$tag <- NA
 combi <- rbind(train, test)
 
-combi$`Product Name` = paste(combi$'Short Description', combi$`Product Name`)
-combi$`Product Name` = paste(combi$'Product Long Description', combi$`Product Name`)
+combi$Length_Name <- nchar(combi$'Product Name')
+combi$Length_Description <- nchar(combi$'Product Long Description')
 
-corpus <- Corpus(VectorSource(combi$`Product Name`))
+combi$'Product Name' = paste(combi$'Product Long Description', combi$'Product Name')
+combi$'Product Name' = paste(combi$'Short Description', combi$'Product Name')
+combi$'Product Name' = paste(combi$'Synopsis', combi$'Product Name') 
+combi$'Product Name' = paste(combi$'Product Short Description', combi$'Product Name') 
+combi$'Product Name' = paste(combi$Actors, combi$'Product Name')
+
+corpus <- Corpus(VectorSource(combi$'Product Name'))
 corpus <- tm_map(corpus, tolower)
+#corpus <- tm_map(corpus, removeNumbers)
 corpus <- tm_map(corpus, removePunctuation)
 corpus <- tm_map(corpus, removeWords, c(stopwords('english')))
 corpus <- tm_map(corpus, stripWhitespace)
@@ -120,7 +127,7 @@ model_xgb_cv <- xgb.cv(data=as.matrix(mytrain),
                        objective="multi:softmax",
                        num_class = 32,
                        nrounds=1, 
-                       eta=0.3, 
+                       eta=0.5, 
                        max_depth=8, 
                        subsample=0.75, 
                        colsample_bytree=0.8, 
@@ -133,7 +140,7 @@ model_xgb <- xgboost(data=as.matrix(mytrain),
                      objective="multi:softmax", 
                      nrounds=60, 
                      num_class = 32,
-                     eta=0.3, 
+                     eta=0.5, 
                      max_depth=8, 
                      subsample=0.75, 
                      colsample_bytree=0.8, 
@@ -145,10 +152,19 @@ model_xgb <- xgboost(data=as.matrix(mytrain),
 
 preds <- predict(model_xgb, as.matrix(mytest))
 
+rm(mytrain)
+gc()
+rm(mytest)
+gc()
+rm(train)
+gc()
+rm(test)
+gc()
+
 final_sub <- data.frame(item_id = ID, tag = preds)
 for(i in 1:length(final_sub$tag)){
   final_sub$tag[i] = as.numeric(levels(as.factor(outcome))[final_sub$tag[i] + 1])}
 
-final_sub$tag[final_sub$tag == 15] = 4537
+final_sub$tag[final_sub$tag == 15] = paste0('3304195, ', '1229821')
 final_sub$tag <- paste0("[", final_sub$tag,"]")
 write.table(final_sub, file='tags.tsv', quote=FALSE, sep='\t', row.names=F)
