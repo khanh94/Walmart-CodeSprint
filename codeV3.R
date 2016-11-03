@@ -4,8 +4,10 @@ library(data.table)
 library(xgboost)
 library(tm)
 library(tm.plugin.webmining)
+library(qdap)
+library(RWeka)
+library(dplyr)
 
-#Reading the data
 train <- fread('train.tsv')
 test <- fread('test.tsv')
 
@@ -26,17 +28,7 @@ ID <- test$item_id
 test$tag <- NA
 combi <- rbind(train, test)
 
-combi$Length_Name <- nchar(combi$'Product Name')
-combi$Length_Description <- nchar(combi$'Product Long Description')
-
-#Building a corpus of text data and extracting words from the corpus
-combi$'Product Name' = paste(combi$'Product Long Description', combi$'Product Name')
-combi$'Product Name' = paste(combi$'Short Description', combi$'Product Name')
-combi$'Product Name' = paste(combi$'Synopsis', combi$'Product Name') 
-combi$'Product Name' = paste(combi$'Product Short Description', combi$'Product Name') 
-combi$'Product Name' = paste(combi$Actors, combi$'Product Name')
-
-corpus <- Corpus(VectorSource(combi$'Product Name'))
+corpus = Corpus(DataframeSource(combi %>% select(13, 14, 15)))
 corpus <- tm_map(corpus, tolower)
 #corpus <- tm_map(corpus, removeNumbers)
 corpus <- tm_map(corpus, removePunctuation)
@@ -45,21 +37,53 @@ corpus <- tm_map(corpus, stripWhitespace)
 corpus <- tm_map(corpus, stemDocument)
 corpus <- tm_map(corpus, PlainTextDocument)
 
-#Build a Document Term Frequency matrix
-frequencies <- DocumentTermMatrix(corpus) 
 
-#Removing sparse terms
-sparse <- removeSparseTerms(frequencies, 1 - 50/nrow(frequencies))
+frequencies <- DocumentTermMatrix(corpus) #control = list(tokenize = BigramTokenizer)) 
+
+sparse <- removeSparseTerms(frequencies, 1 - 30/nrow(frequencies))
 dim(sparse)
 
 newsparse <- as.data.frame(as.matrix(sparse))
+#newsparse2 <- as.data.frame(as.matrix(sparse2))
+#newsparse <- cbind(newsparse, newsparse2)
 dim(newsparse)
 
 colnames(newsparse) <- make.names(colnames(newsparse))
 
-#Separating products appearing on 1 shelf and multiple shelves
+
+for(i in 1:length(train$tag)){
+  if(length(strsplit(train$tag, ",")[i][[1]]) == 2){
+    train$tag[i] = 2
+  }
+}
+
+for(i in 1:length(train$tag)){
+  if(length(strsplit(train$tag, ",")[i][[1]]) == 3){
+    train$tag[i] = 3
+  }
+}
+
+
+for(i in 1:length(train$tag)){
+  if(length(strsplit(train$tag, ",")[i][[1]]) == 4){
+    train$tag[i] = 4
+  }
+}
+
+for(i in 1:length(train$tag)){
+  if(length(strsplit(train$tag, ",")[i][[1]]) == 5){
+    train$tag[i] = 5
+  }
+}
+
+for(i in 1:length(train$tag)){
+  if(length(strsplit(train$tag, ",")[i][[1]]) == 6){
+    train$tag[i] = 6
+  }
+}
+
 train$tag <- as.numeric(train$tag)
-train$tag[is.na(train$tag)] = 15
+#train$tag[is.na(train$tag)] = 15
 
 target = as.numeric(as.factor(train$tag)) - 1
 outcome <- train$tag
@@ -71,7 +95,7 @@ rm(corpus)
 rm(corpus2)
 rm(frequencies)
 rm(frequencies2)
-rm(sparse)
+rm(sparse) 
 rm(newsparse)
 rm(combi)
 gc()
@@ -130,7 +154,7 @@ model_xgb_cv <- xgb.cv(data=as.matrix(mytrain),
                        label=as.matrix(target), 
                        nfold=5, 
                        objective="multi:softmax",
-                       num_class = 32,
+                       num_class = 37,
                        nrounds=1, 
                        eta=0.5, 
                        max_depth=8, 
@@ -139,12 +163,12 @@ model_xgb_cv <- xgb.cv(data=as.matrix(mytrain),
                        min_child_weight=1, 
                        eval_metric="merror")
 
-#Run the classification model
+
 model_xgb <- xgboost(data=as.matrix(mytrain), 
                      label=as.matrix(target), 
                      objective="multi:softmax", 
                      nrounds=60, 
-                     num_class = 32,
+                     num_class = 37,
                      eta=0.5, 
                      max_depth=8, 
                      subsample=0.75, 
@@ -157,7 +181,6 @@ model_xgb <- xgboost(data=as.matrix(mytrain),
 
 preds <- predict(model_xgb, as.matrix(mytest))
 
-#Remove objects and doing garbage collection
 rm(mytrain)
 gc()
 rm(mytest)
@@ -171,7 +194,11 @@ final_sub <- data.frame(item_id = ID, tag = preds)
 for(i in 1:length(final_sub$tag)){
   final_sub$tag[i] = as.numeric(levels(as.factor(outcome))[final_sub$tag[i] + 1])}
 
-#Substitute the products appearing on multiple shelves with the most popular multiple shelves combination
-final_sub$tag[final_sub$tag == 15] = paste0('3304195, ', '1229821')
+final_sub$tag[final_sub$tag == 2] = paste0('3304195, ', '1229821')
+final_sub$tag[final_sub$tag == 3] = paste0('522484, ', '106546, ', '127175')  
+final_sub$tag[final_sub$tag == 4] = paste0('95987, ', '522484, ', '106546, ', '127175')
+final_sub$tag[final_sub$tag == 5] = paste0('1229817, ', '1229820, ', '1180168, ', '1229821, ', '447913')  
+final_sub$tag[final_sub$tag == 6] = paste0('3304195, ', '1229818, ', '447913, ', '1229817, ', '1180168, ', '1229821')
+
 final_sub$tag <- paste0("[", final_sub$tag,"]")
 write.table(final_sub, file='tags.tsv', quote=FALSE, sep='\t', row.names=F)
